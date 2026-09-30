@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>GridFeed — Continuous Feed Builder</title>
+<title>GreatFeed — Continuous Feed Builder</title>
 <style>
   :root{
     --bg:#fafafa; --fg:#262626; --muted:#8e8e8e; --line:#dbdbdb;
@@ -135,6 +135,12 @@
   .tile:hover::after{background:rgba(0,0,0,.07)}
   .tile:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
   .feedfoot{text-align:center; font-size:12.5px; color:var(--muted); margin:22px 0 0; padding:0 20px}
+  .shared-badge{
+    font-size:10.5px; font-weight:600; color:#8e8e8e;
+    background:#f0f0f0; padding:2px 7px; border-radius:999px;
+    margin-left:8px; vertical-align:middle;
+    letter-spacing:.02em; text-transform:uppercase;
+  }
 
   /* ══════════════════ VIEW: DASHBOARD ══════════════════ */
   #view-dashboard{max-width:920px; margin:0 auto; padding:26px 18px 70px}
@@ -234,7 +240,7 @@
 
 <!-- ══════════════════ TOP NAV ══════════════════ -->
 <nav id="topnav">
-  <span class="brand">GridFeed</span>
+  <span class="brand">GreatFeed</span>
   <div class="nav-tabs">
     <button class="nav-tab is-active" data-go="create">Create</button>
     <button class="nav-tab" data-go="dashboard">My Feeds</button>
@@ -370,13 +376,13 @@
   <div class="modal">
     <h2 id="importTitle">Import a feed</h2>
     <div id="importInputPane">
-      <p class="modal-sub">Paste a share link or code, or choose a <b>.gridfeed</b> file.</p>
+      <p class="modal-sub">Paste a share link or code, or choose a <b>.greatfeed</b> file.</p>
       <textarea id="importCodeInput" placeholder="Paste share code here…"></textarea>
       <div class="modal-actions">
         <button class="btn ghost" id="btnChooseGridfeed">Choose file…</button>
         <button class="btn primary" id="btnImportCode">Import</button>
       </div>
-      <input type="file" id="importFileInput" accept=".gridfeed,.txt" hidden>
+      <input type="file" id="importFileInput" accept=".greatfeed,.txt" hidden>
     </div>
     <div id="importPreviewPane" hidden>
       <p class="modal-sub" id="importPreviewMeta"></p>
@@ -552,6 +558,7 @@
   let currentSource = null;    // 'single' | 'long' | 'saved' | 'import'
   let currentView = 'upload';  // 'upload' | 'feed' | 'dashboard'
   let feedReturnView = 'upload';
+  let sharedViewMode = false;
   let dashboardThumbUrls = [];
   let savedFeedUrls = [];      // object URLs the feed view created & must revoke on close
 
@@ -956,7 +963,7 @@
      ═══════════════════════════════════════════════════════ */
   async function decodeSharePayload(str) {
     str = String(str).trim();
-    if (!str.startsWith('GF1')) throw new Error('Not a GridFeed code');
+    if (!str.startsWith('GF1')) throw new Error('Not a GreatFeed code');
     const flag = str[3];
     const b64 = str.slice(4);
     let bytes = b64urlToBytes(b64);
@@ -979,15 +986,22 @@
   }
 
   function openShareModal(record) {
-    // record: { id, name } — feeds live in the cloud, so we just share the ID
     openModal('modalShare');
     $('#shareLoading').hidden = true;
     $('#shareContent').hidden = false;
 
-    const shareUrl = `${location.origin}/#feed=${record.id}`;
+    const shareUrl = `${location.origin}${location.pathname}#feed=${record.id}`;
     $('#shareLinkInput').value = shareUrl;
-    $('#shareCodeInput').value = shareUrl; // same link works as the code
-    $('#shareLinkHint').textContent = 'Anyone with this link can view the feed.';
+
+    const hint = $('#shareLinkHint');
+    if (hint) hint.textContent = 'Anyone with this link can view the feed (read-only).';
+
+    // Hide the code + file sections — they're no longer needed
+    const codeSection = document.getElementById('shareCodeInput')?.closest('.share-section');
+    if (codeSection) codeSection.style.display = 'none';
+
+    const fileBtn = document.getElementById('btnDownloadGridfeed');
+    if (fileBtn) fileBtn.closest('.share-section').style.display = 'none';
   }
 
   /* ═══════════════════════════════════════════════════════
@@ -1156,29 +1170,33 @@
     }
   }
 
-  async function openSavedFeed(id) {
+  async function openSavedFeed(id, { shared = false } = {}) {
     try {
-      const res = await fetch(`/.netlify/functions/get-feed?id=${encodeURIComponent(id)}`);
-      if (!res.ok) throw new Error('Feed not found');
-      const meta = await res.json();
+      const meta = await fetchJSON(`/.netlify/functions/get-feed?id=${encodeURIComponent(id)}`);
 
       closeFeedUrls();
-      posts = meta.images.map((url, i) => ({
-        url,
-        name: `post-${i + 1}.jpg`,
-      }));
+      posts = meta.images.map((url, i) => ({ url, name: `post-${i + 1}.jpg` }));
 
       currentSavedId = meta.id;
       currentFeedName = meta.name;
-      currentLayout = meta.layout || { cols: 3, rows: Math.ceil(posts.length / 3) };
+      currentLayout = meta.layout;
       currentSource = 'saved';
-      feedReturnView = 'dashboard';
+      feedReturnView = shared ? 'shared' : 'dashboard';
 
       renderFeed();
       showFeed();
+
+      if (shared) applySharedViewMode();
+      else leaveSharedViewMode();
     } catch (err) {
       console.error(err);
-      toast('Could not open feed', 'error');
+      toast('Could not open feed: ' + err.message, 'error');
+
+      if (shared) {
+        // Failed to load a shared link — send them back to a clean homepage
+        leaveSharedViewMode();
+        showUpload();
+      }
     }
   }
 
@@ -1197,6 +1215,41 @@
       console.error(err);
       toast('Could not delete feed', 'error');
     }
+  }
+
+  function applySharedViewMode() {
+    sharedViewMode = true;
+
+    // Hide the Create / My Feeds tabs
+    const navTabs = document.querySelector('.nav-tabs');
+    if (navTabs) navTabs.style.display = 'none';
+
+    // Hide the back, save, and share buttons in the feed bar
+    ['btnBack', 'btnSave', 'btnShare'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
+    // Add a subtle "shared" badge next to the feed title
+    const title = document.getElementById('feedTitle');
+    if (title && !title.querySelector('.shared-badge')) {
+      const badge = document.createElement('span');
+      badge.className = 'shared-badge';
+      badge.textContent = 'Shared · read-only';
+      title.appendChild(badge);
+    }
+  }
+
+  function leaveSharedViewMode() {
+    sharedViewMode = false;
+    const navTabs = document.querySelector('.nav-tabs');
+    if (navTabs) navTabs.style.display = '';
+    ['btnBack', 'btnSave', 'btnShare'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
+    const badge = document.querySelector('#feedTitle .shared-badge');
+    if (badge) badge.remove();
   }
 
   /* ═══════════════════════════════════════════════════════
@@ -1327,12 +1380,11 @@
     if (e.key === 'Enter') { e.preventDefault(); saveCurrentFeed($('#saveNameInput').value); }
   });
 
-  $('#btnShare').addEventListener('click', async () => {
+  $('#btnShare').addEventListener('click', () => {
     if (!posts.length) return;
-    // Feeds live in the cloud — save a copy first if needed
     if (!currentSavedId) {
-      await saveCurrentFeed(currentFeedName);
-      if (!currentSavedId) return;
+      toast('Save the feed first, then share it', 'error');
+      return;
     }
     openShareModal({ id: currentSavedId, name: currentFeedName || 'Untitled feed' });
   });
@@ -1404,27 +1456,10 @@
      HASH IMPORT (auto-detect on load)
      ═══════════════════════════════════════════════════════ */
   async function checkHashImport() {
-    // Cloud share link — #feed=<id>
-    const feed = location.hash.match(/^#feed=([A-Za-z0-9]+)$/);
-    if (feed) {
-      // Clean the URL so it doesn't stick around
-      history.replaceState(null, '', location.pathname + location.search);
-      await openSavedFeed(feed[1]);
-      return;
-    }
-
-    // Legacy share payload — #gf=… (pre-cloud links)
-    const legacy = location.hash.match(/^#gf=(.+)$/);
-    if (!legacy) return;
-    history.replaceState(null, '', location.pathname + location.search);
-    try {
-      const decoded = await decodeSharePayload(legacy[1]);
-      openModal('modalImport');
-      showImportPreview(decoded);
-    } catch (err) {
-      console.warn(err);
-      toast('This share link looks invalid or broken', 'error');
-    }
+    const m = location.hash.match(/^#feed=(.+)$/);
+    if (!m) return;
+    const feedId = decodeURIComponent(m[1]);
+    await openSavedFeed(feedId, { shared: true });
   }
 
   /* ═══════════════════════════════════════════════════════
