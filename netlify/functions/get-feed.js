@@ -1,6 +1,7 @@
-import { getStore } from "@netlify/blobs";
+import { connectLambda, getStore } from "@netlify/blobs";
 
 export async function handler(event) {
+  connectLambda(event);
   const feedId = event.queryStringParameters?.id;
   if (!feedId) {
     return { statusCode: 400, body: "Missing feed ID" };

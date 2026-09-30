@@ -1,6 +1,7 @@
-import { getStore } from "@netlify/blobs";
+import { connectLambda, getStore } from "@netlify/blobs";
 
-export async function handler() {
+export async function handler(event) {
+  connectLambda(event);
   try {
     const store = getStore({ name: "gridfeed-storage" });
     const { blobs } = await store.list({ prefix: "", delimiter: "/" });
