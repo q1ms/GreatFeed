@@ -1,0 +1,10 @@
+{
+  "name": "gridfeed",
+  "version": "1.0.0",
+  "description": "Continuous grid feed builder with cloud storage",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}
