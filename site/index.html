@@ -988,6 +988,7 @@ h1{
   let currentFeedName = '';
   let currentLayout = { cols: 3, rows: 1 };
   let currentSource = null;    // 'single' | 'long' | 'saved' | 'import'
+  let currentDisplay = 'rtl';  // 'rtl' = individual posts (post 1 top-right) · 'ltr' = sliced long images
   let currentView = 'upload';  // 'upload' | 'feed' | 'dashboard'
   let feedReturnView = 'upload';
   let sharedViewMode = false;
@@ -1416,6 +1417,7 @@ h1{
     if (mode === 'single') {
       posts = singlePosts.map((p) => ({ url: p.url, name: p.name, blob: p.blob }));
       // do NOT own these URLs — singlePosts still owns them
+      currentDisplay = 'rtl';
       currentLayout = { cols: 3, rows: Math.ceil(posts.length / 3) };
       currentSource = 'single';
       currentSavedId = null;
@@ -1437,32 +1439,38 @@ h1{
       btn.disabled = false;
       currentLayout = { cols: 3, rows: Math.ceil(posts.length / 3) };
       currentSource = 'long';
+      currentDisplay = 'ltr';
       currentSavedId = null;
       currentFeedName = '';
     }
 
     if (!posts.length) return;
     feedReturnView = 'upload';
-    renderFeed();
+    renderFeed(currentDisplay);
     showFeed();
   }
 
-  function renderFeed() {
+  function renderFeed(display) {
     const grid = $('#grid');
     grid.innerHTML = '';
 
     const COLS = 3;
+    const rtl = display === 'rtl';
+
     posts.forEach((p, i) => {
       const tile = document.createElement('button');
       tile.type = 'button';
       tile.className = 'tile';
       tile.setAttribute('aria-label', `Open post ${i + 1} of ${posts.length}`);
 
-      // Right-to-left placement: post 0 → top-right, post 1 → top-middle, etc.
-      const row = Math.floor(i / COLS);
-      const col = (COLS - 1) - (i % COLS);
-      tile.style.gridRow    = String(row + 1);
-      tile.style.gridColumn = String(col + 1);
+      // LTR for sliced long images (matches slicing order), RTL for individual posts:
+      // post 0 -> top-left (ltr) or top-right (rtl), then top-to-bottom across rows.
+      const row = Math.floor(i / COLS) + 1;
+      const colInRow = i % COLS;
+      const col = rtl ? (COLS - colInRow) : (colInRow + 1);
+
+      tile.style.gridRow    = String(row);
+      tile.style.gridColumn = String(col);
 
       const img = document.createElement('img');
       img.src = p.url;
@@ -1512,7 +1520,13 @@ h1{
       const result = await fetchJSON('/.netlify/functions/save-feed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, layout: currentLayout, images }),
+        body: JSON.stringify({
+          name,
+          layout: currentLayout,
+          source: currentSource || 'single',
+          display: currentDisplay,
+          images,
+        }),
       });
 
       if (!result.success) throw new Error(result.error || 'Save failed');
@@ -1754,10 +1768,11 @@ h1{
       currentSavedId = meta.id;
       currentFeedName = meta.name;
       currentLayout = meta.layout;
-      currentSource = 'saved';
+      currentSource = meta.source || 'saved';
+      currentDisplay = meta.display || (meta.source === 'long' ? 'ltr' : 'rtl');
       feedReturnView = shared ? 'shared' : 'dashboard';
 
-      renderFeed();
+      renderFeed(currentDisplay);
       showFeed();
 
       if (shared) applySharedViewMode();

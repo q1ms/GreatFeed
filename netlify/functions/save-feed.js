@@ -7,7 +7,7 @@ export default async (request, context) => {
 
   try {
     const data = await request.json();
-    const { name, layout, images } = data;
+    const { name, layout, images, source, display } = data;
 
     const feedId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     // No need for connectLambda; the context is automatic in this mode.
@@ -25,6 +25,9 @@ export default async (request, context) => {
     const meta = {
       id: feedId,
       name: name || "Untitled feed",
+      // 'single' + 'rtl' = individual posts, 'long' + 'ltr' = sliced long images
+      source: source === "long" ? "long" : "single",
+      display: display === "ltr" ? "ltr" : "rtl",
       layout,
       images: imageUrls,
       createdAt: new Date().toISOString(),
