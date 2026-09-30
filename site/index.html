@@ -7,7 +7,7 @@
 <style>
   :root{
     --bg:#fafafa; --fg:#262626; --muted:#8e8e8e; --line:#dbdbdb;
-    --accent:#0095f6; --tile-gap:3px;
+    --accent:#0095f6; --tile-gap:1px;
   }
   *{box-sizing:border-box}
   [hidden]{display:none !important}
@@ -122,7 +122,7 @@
 
   .grid{
     display:grid; grid-template-columns:repeat(3,1fr);
-    gap:var(--tile-gap); background:#fff;
+    gap:var(--tile-gap); background:#dbdbdb;    /* <- was #fff */
     width:100%; max-width:900px; margin:0 auto;
   }
   .tile{
@@ -412,12 +412,25 @@
      ═══════════════════════════════════════════════════════ */
   const TILE_W = 1080, TILE_H = 1350;
   const MAX_TILES = 150;
+  const SHARE_W = 480;        // max width when compressing images for upload
+  const SHARE_Q = 0.72;       // JPEG quality when compressing images for upload
 
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => document.querySelectorAll(s);
 
   const escapeHtml = (s) => String(s).replace(/[&<>"']/g,
     (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+
+  async function fetchJSON(url, options) {
+    const res = await fetch(url, options);
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}${text ? ': ' + text.slice(0, 300) : ' (empty body)'}`);
+    }
+    if (!text) throw new Error('Empty response from server');
+    try { return JSON.parse(text); }
+    catch { throw new Error(`Invalid JSON: ${text.slice(0, 300)}`); }
+  }
 
   function showAlert(el, html, kind) {
     el.innerHTML = html;
@@ -448,6 +461,16 @@
     el.classList.add('show');
     clearTimeout(el._t);
     el._t = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
+  function loadImageFromBlob(blob) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload  = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable')); };
+      img.src = url;
+    });
   }
 
   function blobToBase64(blob) {
@@ -500,6 +523,20 @@
   async function inflate(bytes) {
     if (typeof DecompressionStream === 'undefined') throw new Error('Decompression unsupported');
     return streamThrough(new DecompressionStream('deflate-raw'), bytes);
+  }
+
+  async function shrinkImage(blob, maxWidth, quality) {
+    const img = await loadImageFromBlob(blob);
+    const scale = Math.min(1, maxWidth / img.naturalWidth);
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    return new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality));
   }
 
   /* ═══════════════════════════════════════════════════════
@@ -630,9 +667,18 @@
         continue;
       }
 
-      if (img.naturalWidth !== TILE_W || img.naturalHeight !== TILE_H) {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+
+      // Accept any image whose width/height is an exact multiple OR exact
+      // divisor of 1080×1350 — i.e. 1080×1350, 2160×2700, 540×675, 360×450, etc.
+      const isBigger  = (w % TILE_W === 0) && (h % TILE_H === 0);
+      const isSmaller = (TILE_W % w === 0) && (TILE_H % h === 0);
+
+      if (!isBigger && !isSmaller) {
         rejected.push(
-          `<li>${escapeHtml(file.name)} — ${img.naturalWidth}×${img.naturalHeight} (needs 1080×1350)</li>`);
+          `<li>${escapeHtml(file.name)} — ${w}×${h} (must divide evenly into 1080×1350 ` +
+          `or be a multiple of it)</li>`);
         URL.revokeObjectURL(url);
         continue;
       }
@@ -869,31 +915,26 @@
 
     const btn = $('#btnConfirmSave');
     btn.disabled = true;
-    btn.textContent = 'Saving…';
+    btn.textContent = 'Saving...';
 
     try {
-      // Convert each post blob to a base64 string.
-      // Posts opened from the cloud have no local blob — fetch them back first.
+      // Compress each image to keep the payload well under 6 MB
+      // (posts opened from the cloud have no local blob — fetch them back first)
       const images = await Promise.all(
-        posts.map((p) =>
-          p.blob
-            ? blobToBase64(p.blob)
-            : fetch(p.url).then((r) => r.blob()).then(blobToBase64)
-        )
+        posts.map(async (p) => {
+          const blob = p.blob || await fetch(p.url).then((r) => r.blob());
+          const small = await shrinkImage(blob, SHARE_W, SHARE_Q);
+          return await blobToBase64(small);
+        })
       );
 
-      const response = await fetch('/.netlify/functions/save-feed', {
+      const result = await fetchJSON('/.netlify/functions/save-feed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          layout: currentLayout,
-          images,
-        }),
+        body: JSON.stringify({ name, layout: currentLayout, images }),
       });
 
-      const result = await response.json();
-      if (!result.success) throw new Error('Save failed');
+      if (!result.success) throw new Error(result.error || 'Save failed');
 
       currentSavedId = result.feedId;
       currentFeedName = name;
@@ -903,7 +944,7 @@
       toast('Feed saved', 'success');
     } catch (err) {
       console.error(err);
-      toast('Could not save feed', 'error');
+      toast('Save failed: ' + err.message, 'error');
     } finally {
       btn.disabled = false;
       btn.textContent = 'Save';
@@ -1058,12 +1099,10 @@
 
     let feeds;
     try {
-      const res = await fetch('/.netlify/functions/list-feed');
-      if (!res.ok) throw new Error('List failed');
-      feeds = await res.json();
+      feeds = await fetchJSON('/.netlify/functions/list-feeds');
     } catch (err) {
       console.error(err);
-      toast('Could not load saved feeds', 'error');
+      toast('Could not load feeds: ' + err.message, 'error');
       feeds = [];
     }
     if (!Array.isArray(feeds)) feeds = [];
