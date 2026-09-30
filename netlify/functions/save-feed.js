@@ -19,7 +19,7 @@ export default async (request, context) => {
       const buffer = Buffer.from(base64Data, "base64");
       const blobKey = `${feedId}/image-${i}.jpg`;
       await store.set(blobKey, buffer);
-      imageUrls.push(`/.netlify/blobs/${feedId}/image-${i}.jpg`);
+      imageUrls.push(`/.netlify/functions/get-image?feed=${feedId}&i=${i}`);
     }
 
     const meta = {
