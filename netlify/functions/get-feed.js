@@ -1,27 +1,27 @@
-import { connectLambda, getStore } from "@netlify/blobs";
+import { getStore } from "@netlify/blobs";
 
-export async function handler(event) {
-  connectLambda(event);
-  const feedId = event.queryStringParameters?.id;
+export default async (request, context) => {
+  const feedId = new URL(request.url).searchParams.get("id");
   if (!feedId) {
-    return { statusCode: 400, body: "Missing feed ID" };
+    return new Response("Missing feed ID", { status: 400 });
   }
 
   try {
-    const store = getStore({ name: "gridfeed-storage" });
+    const store = getStore({ name: "gridfeed-storage", consistency: "strong" });
     const meta = await store.get(`${feedId}/meta.json`, { type: "json" });
 
     if (!meta) {
-      return { statusCode: 404, body: "Feed not found" };
+      return new Response("Feed not found", { status: 404 });
     }
 
-    return {
-      statusCode: 200,
+    return new Response(JSON.stringify(meta), {
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(meta),
-    };
+    });
   } catch (error) {
     console.error(error);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
-}
+};

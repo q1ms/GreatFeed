@@ -1,25 +1,29 @@
-import { connectLambda, getStore } from "@netlify/blobs";
+import { getStore } from "@netlify/blobs";
 
-export async function handler(event) {
-  connectLambda(event);
-  if (event.httpMethod !== "DELETE") {
-    return { statusCode: 405, body: "Method Not Allowed" };
+export default async (request, context) => {
+  if (request.method !== "DELETE") {
+    return new Response("Method Not Allowed", { status: 405 });
   }
 
-  const feedId = event.queryStringParameters?.id;
+  const feedId = new URL(request.url).searchParams.get("id");
   if (!feedId) {
-    return { statusCode: 400, body: "Missing feed ID" };
+    return new Response("Missing feed ID", { status: 400 });
   }
 
   try {
-    const store = getStore({ name: "gridfeed-storage" });
+    const store = getStore({ name: "gridfeed-storage", consistency: "strong" });
     const { blobs } = await store.list({ prefix: `${feedId}/` });
 
     await Promise.all(blobs.map((b) => store.delete(b.key)));
 
-    return { statusCode: 200, body: JSON.stringify({ success: true }) };
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (error) {
     console.error(error);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
-}
+};
