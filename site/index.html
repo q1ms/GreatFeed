@@ -203,111 +203,6 @@ h1{
 }
 .thumb:hover{transform:translateY(-1px);box-shadow:0 0 0 1px var(--line-strong),var(--shadow-sm)}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.thumb button{
-  position:absolute;top:5px;right:5px;
-  width:22px;height:22px;padding:0;
-  border-radius:50%;border:0;
-  background:rgba(28,25,23,.72);color:#fff;
-  font-size:11px;line-height:1;cursor:pointer;
-  display:grid;place-items:center;
-  transition:background .15s,transform .15s;
-  opacity:0;
-}
-.thumb:hover button{opacity:1}
-.thumb button:hover{background:rgba(28,25,23,.95);transform:scale(1.08)}
-
-.thumb {
-  cursor: grab;
-  user-select: none;
-  -webkit-user-select: none;
-}
-.thumb:active { cursor: grabbing; }
-.thumb.dragging { opacity: .4; }
-.thumb.drag-over {
-  outline: 2px solid var(--brand-red);
-  outline-offset: 2px;
-}
-
-.thumb-arrow {
-  position: absolute;
-  bottom: 5px;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(28,25,23,.72);
-  color: #fff;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  opacity: 0;
-  transition: opacity .15s, background .15s;
-}
-.thumb-arrow.prev { left: 5px; }
-.thumb-arrow.next { right: 5px; }
-.thumb:hover .thumb-arrow { opacity: 1; }
-.thumb-arrow:hover { background: rgba(28,25,23,.95); }
-.thumb-arrow:disabled { opacity: .25; cursor: default; }
-/* compat: the generic .thumb button rule above sets top:5px — keep arrows at the bottom */
-.thumb button.thumb-arrow { top: auto; }
-
-.longPreview{margin-top:20px}
-.sliceGrid{
-  display:grid;gap:2px;background:#fff;
-  border-radius:10px;overflow:hidden;
-  max-width:300px;margin:0 auto;
-  box-shadow:0 0 0 1px var(--line);
-}
-.sliceCell{background-repeat:no-repeat;background-color:var(--surface-2)}
-.longMeta{
-  margin-top:14px;text-align:center;
-  font-size:13px;color:var(--muted);
-}
-.longMeta b{color:var(--fg);font-weight:600}
-
-.longItem {
-  position: relative;
-  margin-bottom: 14px;
-  padding: 16px 14px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface-2);
-}
-.longItem:last-child { margin-bottom: 0; }
-.longItem .sliceGrid { max-width: 220px; }
-.longItem .longMeta { margin-top: 10px; font-size: 12px; }
-
-.removeLong {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(28,25,23,.62);
-  color: #fff;
-  font-size: 11px;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition: background .15s, transform .15s;
-}
-.removeLong:hover { background: rgba(28,25,23,.92); transform: scale(1.08); }
-
-.longTotal {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  font-size: 13px;
-  color: var(--muted);
-  text-align: center;
-}
-.longTotal b { color: var(--fg); font-weight: 700; }
 
 .actions{margin-top:28px;display:flex;justify-content:flex-end}
 
@@ -614,57 +509,138 @@ h1{
   font-size:12.5px;
 }
 
-/* Thumbs toolbar */
-.thumbs-toolbar{
+/* Editor (shared between both modes) */
+.editor{
+  margin-top:22px;padding-top:20px;
+  border-top:1px solid var(--line);
+}
+.editor-head{
+  display:flex;align-items:center;gap:9px;margin-bottom:5px;
+}
+.editor-head strong{font-size:14.5px;letter-spacing:-.01em;font-weight:700}
+.editor-count{
+  font-size:11px;font-weight:700;color:var(--brand-red);
+  background:rgba(220,39,67,.1);padding:2px 9px;border-radius:999px;
+}
+
+/* Editor toolbar */
+.editor-toolbar{
   display:flex;align-items:center;gap:8px;
-  padding:10px 12px;margin-bottom:12px;
+  padding:10px 12px;margin:12px 0;
   background:var(--surface-2);border:1px solid var(--line);
   border-radius:10px;font-size:12.5px;color:var(--muted);
 }
-.thumbs-toolbar .spacer{flex:1}
-.thumbs-toolbar #carouselToolbarLabel{font-weight:600;color:var(--fg)}
+.editor-toolbar .spacer{flex:1}
+.editor-toolbar #carouselToolbarLabel{font-weight:600;color:var(--fg)}
 
-/* Thumb enhancements */
-.thumb{position:relative}
+/* Thumb controls — always visible */
+.thumb{position:relative;cursor:grab;user-select:none;-webkit-user-select:none}
+.thumb:active{cursor:grabbing}
+.thumb.dragging{opacity:.4}
+.thumb.drag-over{outline:2px solid var(--brand-red);outline-offset:2px}
 .thumb.selected{outline:2px solid var(--brand-red);outline-offset:2px}
 
 .thumb-check{
   position:absolute;top:6px;left:6px;
   width:18px;height:18px;cursor:pointer;
-  accent-color:var(--brand-red);
-  z-index:3;opacity:1;
+  accent-color:var(--brand-red);z-index:3;opacity:1;
 }
+
+.thumb-remove{
+  position:absolute;top:5px;right:5px;
+  width:20px;height:20px;padding:0;border:0;border-radius:50%;
+  background:rgba(28,25,23,.72);color:#fff;font-size:11px;line-height:1;
+  cursor:pointer;display:grid;place-items:center;z-index:3;
+  opacity:0;transition:opacity .15s,background .15s,transform .15s;
+}
+.thumb:hover .thumb-remove{opacity:1}
+.thumb-remove:hover{background:rgba(28,25,23,.95);transform:scale(1.1)}
 
 .thumb-add{
   position:absolute;bottom:6px;right:6px;
-  width:24px;height:24px;padding:0;
-  border:0;border-radius:50%;
+  width:24px;height:24px;padding:0;border:0;border-radius:50%;
   background:var(--brand-gradient);color:#fff;
   font-size:15px;font-weight:700;line-height:1;cursor:pointer;
-  display:grid;place-items:center;
-  opacity:1;
-  transition:opacity .15s,background .15s,transform .15s,box-shadow .15s;
-  z-index:3;
+  display:grid;place-items:center;z-index:3;
   box-shadow:0 2px 6px rgba(220,39,67,.35);
+  transition:transform .15s,box-shadow .15s;
 }
 .thumb-add:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(220,39,67,.5)}
+
+.thumb-preview{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:38px;height:38px;padding:0;border:0;border-radius:50%;
+  background:rgba(28,25,23,.72);color:#fff;
+  font-size:16px;line-height:1;cursor:pointer;
+  display:grid;place-items:center;z-index:4;
+  opacity:0;transition:opacity .15s,background .15s,transform .15s;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+}
+.thumb:hover .thumb-preview{opacity:1}
+.thumb-preview:hover{
+  background:rgba(28,25,23,.92);
+  transform:translate(-50%,-50%) scale(1.1);
+}
 
 .thumb-count{
   position:absolute;bottom:6px;left:6px;
   background:rgba(28,25,23,.72);color:#fff;
-  font-size:10.5px;font-weight:700;
-  padding:2px 6px;border-radius:999px;
-  letter-spacing:.02em;z-index:3;
+  font-size:10.5px;font-weight:700;padding:2px 7px;
+  border-radius:999px;letter-spacing:.02em;z-index:3;
 }
 
-.thumb-remove,.thumb-arrow{z-index:3}
+.thumb-arrow{
+  position:absolute;bottom:6px;width:22px;height:22px;padding:0;
+  border:0;border-radius:50%;background:rgba(28,25,23,.72);color:#fff;
+  font-size:14px;line-height:1;cursor:pointer;display:grid;place-items:center;
+  opacity:0;transition:opacity .15s,background .15s;z-index:3;
+}
+.thumb-arrow.prev{left:5px}
+.thumb-arrow.next{left:30px}
+.thumb:hover .thumb-arrow{opacity:1}
+.thumb-arrow:hover{background:rgba(28,25,23,.95)}
+.thumb-arrow:disabled{opacity:.25;cursor:default}
 
-/* Feed tile carousel badge */
-.tile-carousel{
+/* Preview modal */
+.preview-strip{
+  display:flex;gap:10px;overflow-x:auto;padding:6px 2px 14px;
+  scroll-snap-type:x mandatory;
+}
+.preview-item{
+  flex:0 0 auto;width:150px;scroll-snap-align:start;
+  display:flex;flex-direction:column;gap:6px;
+}
+.preview-item img{
+  width:150px;height:187px;object-fit:cover;border-radius:10px;
+  background:var(--surface-2);box-shadow:0 0 0 1px var(--line);
+}
+.preview-item span{
+  font-size:10.5px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.06em;text-align:center;
+}
+.preview-item:first-child span{color:var(--brand-red)}
+
+/* Feed tile edit button (+ on each tile, non-shared mode) */
+.tile-edit{
   position:absolute;top:8px;right:8px;
-  color:#fff;font-size:15px;
-  filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));
-  pointer-events:none;z-index:2;
+  width:26px;height:26px;padding:0;border-radius:50%;
+  background:rgba(28,25,23,.72);color:#fff;
+  font-size:16px;font-weight:700;line-height:1;
+  display:grid;place-items:center;z-index:3;cursor:pointer;
+  opacity:0;transition:opacity .18s,background .15s,transform .15s;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+}
+.tile:hover .tile-edit{opacity:1}
+.tile-edit:hover{background:rgba(28,25,23,.95);transform:scale(1.1)}
+
+.tile-carousel{
+  position:absolute;top:8px;left:8px;
+  display:flex;align-items:center;gap:4px;
+  background:rgba(28,25,23,.72);color:#fff;
+  font-size:11px;font-weight:700;padding:3px 8px;
+  border-radius:999px;pointer-events:none;z-index:2;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
 }
 
 /* Lightbox dots */
@@ -751,31 +727,19 @@ h1{
 
     <div class="tabs" role="tablist">
       <button class="tab is-active" data-tab="single" role="tab" aria-selected="true">Individual posts</button>
-      <button class="tab" data-tab="long" role="tab" aria-selected="false">One long image</button>
+      <button class="tab" data-tab="long" role="tab" aria-selected="false">Long image</button>
     </div>
 
-    <!-- Option 1 -->
     <div class="panel is-active" data-panel="single">
       <label class="drop" id="dropSingle">
         <input type="file" id="fileSingle" accept="image/*" multiple hidden>
         <strong>Choose 1080 × 1350 images</strong>
         <span>or drag &amp; drop them here</span>
       </label>
-      <p class="hint">Each file must be exactly <b>1080 × 1350</b> px (4:5). Anything else is skipped.</p>
+      <p class="hint">Any size whose width divides evenly into 1080 and height into 1350 (e.g. 540×675, 2160×2700) works too.</p>
       <div class="alert" id="alertSingle" hidden></div>
-      <div class="thumbs-toolbar" id="carouselToolbar" hidden>
-        <span id="carouselToolbarLabel">0 selected</span>
-        <span class="spacer"></span>
-        <button class="btn small" id="btnClearSelection" type="button">Clear</button>
-        <button class="btn small primary" id="btnSplitSelected" type="button">Split one image across selected</button>
-      </div>
-      <p class="hint thumbs-hint" id="thumbsHint" hidden style="margin-bottom:10px">
-      Hover a post and click <b>+</b> to add images behind it · check posts to bulk-split one big image across them.
-    </p>
-    <div class="thumbs" id="thumbsSingle"></div>
     </div>
 
-    <!-- Option 2 -->
     <div class="panel" data-panel="long">
       <label class="drop" id="dropLong">
         <input type="file" id="fileLong" accept="image/*" multiple hidden>
@@ -784,14 +748,27 @@ h1{
       </label>
       <p class="hint">
         Width must divide evenly by <b>1080</b>, height evenly by <b>1350</b>.
-        E.g. 3240 × 4050 → a 3 × 3 grid of 9 posts.
-        Add several long images and their tiles combine into one feed.
+        Tiles are sliced automatically and appear below.
       </p>
       <div class="alert" id="alertLong" hidden></div>
-      <div class="longPreview" id="longPreview" hidden>
-        <div id="longList"></div>
-        <div class="longTotal" id="longTotal"></div>
+    </div>
+
+    <div class="editor" id="postsEditor" hidden>
+      <div class="editor-head">
+        <strong>Posts</strong>
+        <span class="editor-count" id="editorCount">0</span>
       </div>
+      <p class="hint">
+        Drag to reorder · hover a post and click <b>👁</b> to preview its carousel ·
+        click <b>+</b> to add images behind it · check posts to bulk-split one big image across them.
+      </p>
+      <div class="editor-toolbar" id="carouselToolbar" hidden>
+        <span id="carouselToolbarLabel">0 selected</span>
+        <span class="spacer"></span>
+        <button class="btn small" id="btnClearSelection" type="button">Clear</button>
+        <button class="btn small primary" id="btnSplitSelected" type="button">Split one image across selected</button>
+      </div>
+      <div class="thumbs" id="thumbsSingle"></div>
     </div>
 
     <div class="actions">
@@ -840,6 +817,18 @@ h1{
     <div class="modal-actions">
       <button class="btn ghost" data-close-modal="modalSave">Cancel</button>
       <button class="btn primary" id="btnConfirmSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-wrap" id="modalPreview" hidden>
+  <div class="modal-backdrop" data-close-modal="modalPreview"></div>
+  <div class="modal">
+    <h2 id="previewTitle">Post preview</h2>
+    <p class="modal-sub" id="previewMeta"></p>
+    <div class="preview-strip" id="previewStrip"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" data-close-modal="modalPreview">Close</button>
     </div>
   </div>
 </div>
@@ -1055,16 +1044,16 @@ h1{
   /* ═══════════════════════════════════════════════════════
      STATE
      ═══════════════════════════════════════════════════════ */
-  let singlePosts = [];        // [{ id, cover:{url,name,blob}, extras:[{url,name,blob}] }] — owned URLs
+  let singlePosts = [];        // [{ id, images:[{url,name,blob}] }] — owned URLs
   let selectedPostIds = new Set();
-  let longImages = [];
+  let currentDisplay = 'rtl';  // 'rtl' = individual posts (post 1 top-right) · 'ltr' = sliced long images
   let posts = [];              // active feed posts [{ id, images:[{url,name,blob?}] }]
   let feedOwnedUrls = [];      // object URLs the feed view created & must revoke on close
   let currentSavedId = null;   // set when feed is saved / loaded from the server
   let currentFeedName = '';
   let currentLayout = { cols: 3, rows: 1 };
   let currentSource = null;    // 'single' | 'long' | 'saved' | 'import'
-  let currentDisplay = 'rtl';  // 'rtl' = individual posts (post 1 top-right) · 'ltr' = sliced long images
+  // NOTE: currentDisplay already declared above with singlePosts.
   let currentView = 'upload';  // 'upload' | 'feed' | 'dashboard'
   let feedReturnView = 'upload';
   let sharedViewMode = false;
@@ -1084,6 +1073,18 @@ h1{
     currentSavedId = null;
     currentFeedName = '';
     currentSource = null;
+    currentDisplay = 'rtl';
+    singlePosts.forEach((p) => p.images.forEach((im) => { try { URL.revokeObjectURL(im.url); } catch {} }));
+    singlePosts = [];
+    selectedPostIds.clear();
+    const fs = $('#fileSingle');
+    if (fs) fs.value = '';
+    const fl = $('#fileLong');
+    if (fl) fl.value = '';
+    hideAlert($('#alertSingle'));
+    hideAlert($('#alertLong'));
+    renderThumbs();
+    updateContinue();
     $('#view-upload').hidden = false;
     $('#view-feed').hidden = true;
     $('#view-dashboard').hidden = true;
@@ -1137,8 +1138,7 @@ h1{
   });
 
   function updateContinue() {
-    const ok = activeTab() === 'single' ? singlePosts.length > 0 : longImages.length > 0;
-    $('#btnContinue').disabled = !ok;
+    $('#btnContinue').disabled = singlePosts.length === 0;
   }
 
   /* ═══════════════════════════════════════════════════════
@@ -1164,7 +1164,6 @@ h1{
     if (!files.length) return;
 
     const rejected = [];
-
     for (const file of files) {
       let img, url;
       try {
@@ -1180,8 +1179,7 @@ h1{
         continue;
       }
 
-      const w = img.naturalWidth;
-      const h = img.naturalHeight;
+      const w = img.naturalWidth, h = img.naturalHeight;
       const isBigger  = (w % TILE_W === 0) && (h % TILE_H === 0);
       const isSmaller = (TILE_W % w === 0) && (TILE_H % h === 0);
 
@@ -1193,8 +1191,7 @@ h1{
 
       singlePosts.push({
         id: 'p_' + Math.random().toString(36).slice(2, 10),
-        cover: { url, blob: file, name: file.name },
-        extras: [],
+        images: [{ url, blob: file, name: file.name }],
       });
     }
 
@@ -1210,10 +1207,14 @@ h1{
 
   function renderThumbs() {
     const wrap = $('#thumbsSingle');
+    if (!wrap) return;
     wrap.innerHTML = '';
 
-    const hint = $('#thumbsHint');
-    if (hint) hint.hidden = singlePosts.length < 1;
+    const editor = $('#postsEditor');
+    if (editor) editor.hidden = singlePosts.length === 0;
+
+    const count = $('#editorCount');
+    if (count) count.textContent = `${singlePosts.length} post${singlePosts.length !== 1 ? 's' : ''}`;
 
     updateCarouselToolbar();
 
@@ -1224,8 +1225,9 @@ h1{
       cell.dataset.index = String(i);
       if (selectedPostIds.has(p.id)) cell.classList.add('selected');
 
+      const cover = p.images[0];
       const im = document.createElement('img');
-      im.src = p.cover.url;
+      im.src = cover.url;
       im.alt = '';
       im.draggable = false;
 
@@ -1249,8 +1251,7 @@ h1{
       x.setAttribute('aria-label', 'Remove post');
       x.addEventListener('click', (e) => {
         e.stopPropagation();
-        URL.revokeObjectURL(p.cover.url);
-        p.extras.forEach((ex) => URL.revokeObjectURL(ex.url));
+        p.images.forEach((img) => URL.revokeObjectURL(img.url));
         singlePosts.splice(i, 1);
         selectedPostIds.delete(p.id);
         renderThumbs();
@@ -1327,12 +1328,25 @@ h1{
       });
 
       cell.append(im, cb, x, prev, next, add);
-      if (p.extras.length > 0) {
+
+      if (p.images.length > 1) {
         const badge = document.createElement('span');
         badge.className = 'thumb-count';
-        badge.textContent = `+${p.extras.length}`;
+        badge.textContent = `+${p.images.length - 1}`;
         cell.appendChild(badge);
+
+        const preview = document.createElement('button');
+        preview.type = 'button';
+        preview.className = 'thumb-preview';
+        preview.textContent = '👁';
+        preview.title = 'Preview carousel';
+        preview.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openPreviewModal(p, i);
+        });
+        cell.appendChild(preview);
       }
+
       wrap.appendChild(cell);
     });
   }
@@ -1360,10 +1374,10 @@ h1{
       if (!post) return;
       for (const f of files) {
         const url = URL.createObjectURL(f);
-        post.extras.push({ url, blob: f, name: f.name });
+        post.images.push({ url, blob: f, name: f.name });
       }
       renderThumbs();
-      toast(`Added ${files.length} image${files.length > 1 ? 's' : ''}`, 'success');
+      toast(`Added ${files.length} image${files.length > 1 ? 's' : ''} behind the post`, 'success');
     });
     input.click();
   }
@@ -1405,12 +1419,35 @@ h1{
         ctx.drawImage(img, 0, sy, W, sH, 0, 0, W, sH);
         const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
         const url = URL.createObjectURL(blob);
-        orderedPosts[i].extras.push({ url, blob, name: `${file.name}-s${i + 1}.jpg` });
+        orderedPosts[i].images.push({ url, blob, name: `${file.name}-s${i + 1}.jpg` });
       }
       renderThumbs();
       toast(`Split across ${N} posts`, 'success');
     });
     input.click();
+  }
+
+  function openPreviewModal(post, index) {
+    $('#previewTitle').textContent = `Post ${index + 1}`;
+    const count = post.images.length;
+    $('#previewMeta').textContent =
+      `${count} image${count !== 1 ? 's' : ''} · first is the cover`;
+
+    const strip = $('#previewStrip');
+    strip.innerHTML = '';
+    post.images.forEach((img, i) => {
+      const item = document.createElement('div');
+      item.className = 'preview-item';
+      const im = document.createElement('img');
+      im.src = img.url;
+      im.alt = '';
+      const label = document.createElement('span');
+      label.textContent = i === 0 ? 'Cover' : `#${i + 1}`;
+      item.append(im, label);
+      strip.appendChild(item);
+    });
+
+    openModal('modalPreview');
   }
 
   /* ═══════════════════════════════════════════════════════
@@ -1422,21 +1459,21 @@ h1{
 
     const errors = [];
     for (const file of files) {
-      const err = await validateAndAddLong(file);
+      const err = await sliceAndAddLong(file);
       if (err) errors.push(err);
     }
 
-    renderLongPreviews();
+    renderThumbs();
 
     if (errors.length) {
       showAlert($('#alertLong'),
         `<b>${errors.length} file${errors.length > 1 ? 's' : ''} skipped:</b><ul>${errors.join('')}</ul>`,
         'warn');
-    }
+    } else hideAlert($('#alertLong'));
     updateContinue();
   }
 
-  async function validateAndAddLong(file) {
+  async function sliceAndAddLong(file) {
     let img, url;
     try {
       url = URL.createObjectURL(file);
@@ -1450,186 +1487,65 @@ h1{
       return `<li>${escapeHtml(file.name)} — could not be read</li>`;
     }
 
-    const w = img.naturalWidth;
-    const h = img.naturalHeight;
+    const w = img.naturalWidth, h = img.naturalHeight;
 
     if (w % TILE_W !== 0 || h % TILE_H !== 0 || w < TILE_W || h < TILE_H) {
       URL.revokeObjectURL(url);
       return `<li>${escapeHtml(file.name)} — ${w}×${h} (width must be ×1080, height must be ×1350)</li>`;
     }
 
-    const cols = w / TILE_W;
-    const rows = h / TILE_H;
-    const currentTotal = longImages.reduce((sum, li) => sum + li.cols * li.rows, 0);
+    const cols = w / TILE_W, rows = h / TILE_H;
+    const totalTiles = cols * rows;
 
-    if (currentTotal + cols * rows > MAX_TILES) {
+    if (singlePosts.length + totalTiles > MAX_TILES) {
       URL.revokeObjectURL(url);
       return `<li>${escapeHtml(file.name)} — would exceed the ${MAX_TILES}-tile limit</li>`;
     }
 
-    longImages.push({ img, url, w, h, cols, rows, blob: file, name: file.name });
-    return null;
-  }
-
-  function clearLongs() {
-    longImages.forEach((li) => URL.revokeObjectURL(li.url));
-    longImages = [];
-    const wrap = $('#longPreview');
-    if (wrap) wrap.hidden = true;
-    const list = $('#longList');
-    if (list) list.innerHTML = '';
-    const total = $('#longTotal');
-    if (total) total.textContent = '';
-  }
-
-  function renderLongPreviews() {
-    const list = $('#longList');
-    const wrap = $('#longPreview');
-    if (!list || !wrap) return;
-
-    if (!longImages.length) {
-      wrap.hidden = true;
-      list.innerHTML = '';
-      return;
-    }
-
-    list.innerHTML = '';
-    let totalTiles = 0;
-    let hasNonThree = false;
-
-    longImages.forEach((li, idx) => {
-      totalTiles += li.cols * li.rows;
-      if (li.cols !== 3) hasNonThree = true;
-
-      const item = document.createElement('div');
-      item.className = 'longItem';
-
-      const grid = document.createElement('div');
-      grid.className = 'sliceGrid';
-      grid.style.gridTemplateColumns = `repeat(${li.cols}, 1fr)`;
-      grid.style.gridTemplateRows    = `repeat(${li.rows}, 1fr)`;
-      grid.style.aspectRatio         = `${li.cols * TILE_W} / ${li.rows * TILE_H}`;
-
-      for (let r = 0; r < li.rows; r++) {
-        for (let c = 0; c < li.cols; c++) {
-          const cell = document.createElement('div');
-          cell.className = 'sliceCell';
-          cell.style.backgroundImage = `url("${li.url}")`;
-          cell.style.backgroundSize  = `${li.cols * 100}% ${li.rows * 100}%`;
-          const px = li.cols > 1 ? (c / (li.cols - 1)) * 100 : 0;
-          const py = li.rows > 1 ? (r / (li.rows - 1)) * 100 : 0;
-          cell.style.backgroundPosition = `${px}% ${py}%`;
-          grid.appendChild(cell);
-        }
-      }
-
-      const meta = document.createElement('div');
-      meta.className = 'longMeta';
-      meta.innerHTML = `${li.w}×${li.h} → ${li.cols}×${li.rows} = <b>${li.cols * li.rows}</b> post${li.cols * li.rows > 1 ? 's' : ''}`;
-
-      const rm = document.createElement('button');
-      rm.className = 'removeLong';
-      rm.type = 'button';
-      rm.textContent = '✕';
-      rm.setAttribute('aria-label', 'Remove this image');
-      rm.addEventListener('click', () => {
-        URL.revokeObjectURL(li.url);
-        longImages.splice(idx, 1);
-        renderLongPreviews();
-        updateContinue();
-        hideAlert($('#alertLong'));
-      });
-
-      item.append(grid, meta, rm);
-      list.appendChild(item);
-    });
-
-    const total = $('#longTotal');
-    if (total) {
-      total.innerHTML = `Total: <b>${totalTiles}</b> post${totalTiles > 1 ? 's' : ''} from ${longImages.length} image${longImages.length > 1 ? 's' : ''}`;
-    }
-
-    wrap.hidden = false;
-
-    if (hasNonThree) {
-      showAlert($('#alertLong'),
-        'Some images are not 3 tiles wide — they won\'t line up perfectly with the 3-column grid. Use widths that are multiples of 3×1080 for seamless rows.',
-        'warn');
-    } else {
-      hideAlert($('#alertLong'));
-    }
-  }
-
-  async function sliceAllLongImages() {
     const canvas = document.createElement('canvas');
-    canvas.width  = TILE_W;
+    canvas.width = TILE_W;
     canvas.height = TILE_H;
     const ctx = canvas.getContext('2d');
-    const out = [];
 
-    for (const li of longImages) {
-      for (let r = 0; r < li.rows; r++) {
-        for (let c = 0; c < li.cols; c++) {
-          ctx.clearRect(0, 0, TILE_W, TILE_H);
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, TILE_W, TILE_H);
-          ctx.drawImage(li.img, c * TILE_W, r * TILE_H, TILE_W, TILE_H, 0, 0, TILE_W, TILE_H);
-          const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
-          const url  = URL.createObjectURL(blob);
-          feedOwnedUrls.push(url);
-          out.push({
-            id: 'p_' + Math.random().toString(36).slice(2, 10),
-            images: [{ url, blob, name: `post-${out.length + 1}.png` }],
-          });
-        }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        ctx.clearRect(0, 0, TILE_W, TILE_H);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, TILE_W, TILE_H);
+        ctx.drawImage(img, c * TILE_W, r * TILE_H, TILE_W, TILE_H, 0, 0, TILE_W, TILE_H);
+        const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+        const sliceUrl = URL.createObjectURL(blob);
+        singlePosts.push({
+          id: 'p_' + Math.random().toString(36).slice(2, 10),
+          images: [{ url: sliceUrl, blob, name: `${file.name}-r${r + 1}c${c + 1}.png` }],
+        });
       }
     }
-    return out;
+
+    URL.revokeObjectURL(url);
+    return null;
   }
 
   /* ═══════════════════════════════════════════════════════
      OPEN FEED (from upload)
      ═══════════════════════════════════════════════════════ */
   async function openFeedFromUpload() {
-    const mode = activeTab();
-    const btn = $('#btnContinue');
+    if (!singlePosts.length) return;
+
     closeFeedUrls();
-    posts = [];
+    posts = singlePosts.map((p) => ({
+      id: p.id,
+      images: p.images.map((im) => ({ url: im.url, blob: im.blob, name: im.name })),
+    }));
 
-    if (mode === 'single') {
-      posts = singlePosts.map((p) => ({
-        id: p.id,
-        images: [
-          { url: p.cover.url, blob: p.cover.blob, name: p.cover.name },
-          ...p.extras.map((e) => ({ url: e.url, blob: e.blob, name: e.name })),
-        ],
-      }));
-      currentDisplay = 'rtl';
-      currentSource = 'single';
-    } else {
-      btn.disabled = true;
-      const original = btn.textContent;
-      btn.textContent = 'Slicing…';
-      try {
-        posts = await sliceAllLongImages();
-      } catch (err) {
-        console.error(err);
-        showAlert($('#alertLong'), 'Something went wrong while slicing.');
-        btn.textContent = original;
-        btn.disabled = false;
-        return;
-      }
-      btn.textContent = original;
-      btn.disabled = false;
-      currentDisplay = 'ltr';
-      currentSource = 'long';
-    }
-
-    if (!posts.length) return;
+    const mode = activeTab();
+    currentDisplay = mode === 'long' ? 'ltr' : 'rtl';
+    currentSource = mode === 'long' ? 'long' : 'single';
     currentLayout = { cols: 3, rows: Math.ceil(posts.length / 3) };
     currentSavedId = null;
     currentFeedName = '';
     feedReturnView = 'upload';
+
     renderFeed(currentDisplay);
     showFeed();
   }
@@ -1639,6 +1555,7 @@ h1{
     grid.innerHTML = '';
     const COLS = 3;
     const rtl = display === 'rtl';
+    const editable = !sharedViewMode;
 
     posts.forEach((p, i) => {
       const tile = document.createElement('button');
@@ -1649,7 +1566,6 @@ h1{
       const row = Math.floor(i / COLS);
       const colInRow = i % COLS;
       const col = rtl ? (COLS - 1 - colInRow) : colInRow;
-
       tile.style.gridRowStart = String(row + 1);
       tile.style.gridColumnStart = String(col + 1);
 
@@ -1663,9 +1579,20 @@ h1{
       if (p.images.length > 1) {
         const badge = document.createElement('span');
         badge.className = 'tile-carousel';
-        badge.textContent = '❐';
-        badge.title = `${p.images.length} images`;
+        badge.textContent = `❐ ${p.images.length}`;
         tile.appendChild(badge);
+      }
+
+      if (editable) {
+        const editBtn = document.createElement('span');
+        editBtn.className = 'tile-edit';
+        editBtn.textContent = '+';
+        editBtn.title = 'Add images behind this post';
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          addCarouselToFeedPost(i);
+        });
+        tile.appendChild(editBtn);
       }
 
       tile.addEventListener('click', () => openLightbox(i));
@@ -1675,6 +1602,26 @@ h1{
     $('#feedCount').textContent = `${posts.length} post${posts.length > 1 ? 's' : ''}`;
     $('#feedTitle').textContent = currentFeedName || 'Untitled feed';
     $('#btnSave').textContent = currentSavedId ? 'Update' : 'Save';
+  }
+
+  function addCarouselToFeedPost(index) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.multiple = true;
+    input.addEventListener('change', async () => {
+      const files = Array.from(input.files || []).filter((f) => f.type.startsWith('image/'));
+      if (!files.length) return;
+      const post = posts[index];
+      if (!post) return;
+      for (const f of files) {
+        const url = URL.createObjectURL(f);
+        post.images.push({ url, blob: f, name: f.name });
+      }
+      renderFeed(currentDisplay);
+      toast(`Added ${files.length} image${files.length > 1 ? 's' : ''} · click Update to save`, 'success');
+    });
+    input.click();
   }
 
   /* ═══════════════════════════════════════════════════════
@@ -1857,13 +1804,16 @@ h1{
       const images = await Promise.all(
         pendingImport.blobs.map((b) => blobToBase64(b))
       );
+      const postStructure = images.map((_, i) => [i]);
       const res = await fetch('/.netlify/functions/save-feed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: pendingImport.name,
           layout: pendingImport.layout,
+          display: 'rtl',
           images,
+          postStructure,
         }),
       });
       const result = await res.json();
