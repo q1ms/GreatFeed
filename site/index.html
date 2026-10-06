@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>GreatFeed — Continuous Feed Builder</title>
+<title>GreatFeed</title>
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="apple-touch-icon" href="/logo.png">
 <style>
 :root{
   /* Brand */
@@ -612,6 +614,73 @@ h1{
   font-size:12.5px;
 }
 
+/* Thumbs toolbar */
+.thumbs-toolbar{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 12px;margin-bottom:12px;
+  background:var(--surface-2);border:1px solid var(--line);
+  border-radius:10px;font-size:12.5px;color:var(--muted);
+}
+.thumbs-toolbar .spacer{flex:1}
+.thumbs-toolbar #carouselToolbarLabel{font-weight:600;color:var(--fg)}
+
+/* Thumb enhancements */
+.thumb{position:relative}
+.thumb.selected{outline:2px solid var(--brand-red);outline-offset:2px}
+
+.thumb-check{
+  position:absolute;top:6px;left:6px;
+  width:18px;height:18px;cursor:pointer;
+  accent-color:var(--brand-red);
+  z-index:3;opacity:0;transition:opacity .15s;
+}
+.thumb:hover .thumb-check,
+.thumb.selected .thumb-check{opacity:1}
+
+.thumb-add{
+  position:absolute;bottom:6px;right:6px;
+  width:22px;height:22px;padding:0;
+  border:0;border-radius:50%;
+  background:rgba(28,25,23,.72);color:#fff;
+  font-size:14px;line-height:1;cursor:pointer;
+  display:grid;place-items:center;
+  opacity:0;transition:opacity .15s,background .15s,transform .15s;
+  z-index:3;
+}
+.thumb:hover .thumb-add{opacity:1}
+.thumb-add:hover{background:rgba(28,25,23,.95);transform:scale(1.1)}
+
+.thumb-count{
+  position:absolute;bottom:6px;left:6px;
+  background:rgba(28,25,23,.72);color:#fff;
+  font-size:10.5px;font-weight:700;
+  padding:2px 6px;border-radius:999px;
+  letter-spacing:.02em;z-index:3;
+}
+
+.thumb-remove,.thumb-arrow{z-index:3}
+
+/* Feed tile carousel badge */
+.tile-carousel{
+  position:absolute;top:8px;right:8px;
+  color:#fff;font-size:15px;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));
+  pointer-events:none;z-index:2;
+}
+
+/* Lightbox dots */
+.lb-dots{
+  position:absolute;bottom:72px;left:50%;
+  transform:translateX(-50%);
+  display:flex;gap:7px;z-index:2;
+}
+.lb-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:rgba(255,255,255,.35);
+  transition:background .15s,transform .15s;
+}
+.lb-dot.active{background:#fff;transform:scale(1.4)}
+
 /* ══════════════════ TOAST ══════════════════ */
 #toast{
   position:fixed;bottom:28px;left:50%;
@@ -695,8 +764,14 @@ h1{
       </label>
       <p class="hint">Each file must be exactly <b>1080 × 1350</b> px (4:5). Anything else is skipped.</p>
       <div class="alert" id="alertSingle" hidden></div>
+      <div class="thumbs-toolbar" id="carouselToolbar" hidden>
+        <span id="carouselToolbarLabel">0 selected</span>
+        <span class="spacer"></span>
+        <button class="btn small" id="btnClearSelection" type="button">Clear</button>
+        <button class="btn small primary" id="btnSplitSelected" type="button">Split one image across selected</button>
+      </div>
       <p class="hint thumbs-hint" id="thumbsHint" hidden style="margin-bottom:10px">
-      Drag to reorder · the first post appears at the <b>top-right</b> of the grid.
+      Hover a post and click <b>+</b> to add images behind it · check posts to bulk-split one big image across them.
     </p>
     <div class="thumbs" id="thumbsSingle"></div>
     </div>
@@ -833,6 +908,7 @@ h1{
   <button class="lbnav lbprev" id="lbPrev" aria-label="Previous">‹</button>
   <img id="lbImg" alt="">
   <button class="lbnav lbnext" id="lbNext" aria-label="Next">›</button>
+  <div class="lb-dots" id="lbDots" hidden></div>
   <div class="lbbar">
     <span id="lbCounter"></span>
     <button class="lbbtn" id="lbDownload">Download</button>
@@ -980,9 +1056,10 @@ h1{
   /* ═══════════════════════════════════════════════════════
      STATE
      ═══════════════════════════════════════════════════════ */
-  let singlePosts = [];        // [{ url, name, blob }]  — owned URLs
+  let singlePosts = [];        // [{ id, cover:{url,name,blob}, extras:[{url,name,blob}] }] — owned URLs
+  let selectedPostIds = new Set();
   let longImages = [];
-  let posts = [];              // active feed posts [{ url, name, blob }]
+  let posts = [];              // active feed posts [{ id, images:[{url,name,blob?}] }]
   let feedOwnedUrls = [];      // object URLs the feed view created & must revoke on close
   let currentSavedId = null;   // set when feed is saved / loaded from the server
   let currentFeedName = '';
@@ -1088,20 +1165,17 @@ h1{
     if (!files.length) return;
 
     const rejected = [];
+
     for (const file of files) {
       let img, url;
       try {
-        const res = await (async () => {
-          const url = URL.createObjectURL(file);
-          const img = await new Promise((resolve, reject) => {
-            const i = new Image();
-            i.onload = () => resolve(i);
-            i.onerror = () => { URL.revokeObjectURL(url); reject(new Error('bad')); };
-            i.src = url;
-          });
-          return { img, url };
-        })();
-        img = res.img; url = res.url;
+        url = URL.createObjectURL(file);
+        img = await new Promise((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve(i);
+          i.onerror = () => { URL.revokeObjectURL(url); reject(new Error('bad')); };
+          i.src = url;
+        });
       } catch {
         rejected.push(`<li>${escapeHtml(file.name)} — could not be read</li>`);
         continue;
@@ -1109,29 +1183,27 @@ h1{
 
       const w = img.naturalWidth;
       const h = img.naturalHeight;
-
-      // Accept any image whose width/height is an exact multiple OR exact
-      // divisor of 1080×1350 — i.e. 1080×1350, 2160×2700, 540×675, 360×450, etc.
       const isBigger  = (w % TILE_W === 0) && (h % TILE_H === 0);
       const isSmaller = (TILE_W % w === 0) && (TILE_H % h === 0);
 
       if (!isBigger && !isSmaller) {
-        rejected.push(
-          `<li>${escapeHtml(file.name)} — ${w}×${h} (must divide evenly into 1080×1350 ` +
-          `or be a multiple of it)</li>`);
+        rejected.push(`<li>${escapeHtml(file.name)} — ${w}×${h}</li>`);
         URL.revokeObjectURL(url);
         continue;
       }
-      singlePosts.push({ url, name: file.name, blob: file });
+
+      singlePosts.push({
+        id: 'p_' + Math.random().toString(36).slice(2, 10),
+        cover: { url, blob: file, name: file.name },
+        extras: [],
+      });
     }
 
     renderThumbs();
     if (rejected.length) {
       showAlert($('#alertSingle'),
         `Skipped ${rejected.length} file${rejected.length > 1 ? 's' : ''}:<ul>${rejected.join('')}</ul>`);
-    } else {
-      hideAlert($('#alertSingle'));
-    }
+    } else hideAlert($('#alertSingle'));
     updateContinue();
   }
 
@@ -1142,30 +1214,58 @@ h1{
     wrap.innerHTML = '';
 
     const hint = $('#thumbsHint');
-    if (hint) hint.hidden = singlePosts.length < 2;
+    if (hint) hint.hidden = singlePosts.length < 1;
+
+    updateCarouselToolbar();
 
     singlePosts.forEach((p, i) => {
       const cell = document.createElement('div');
       cell.className = 'thumb';
       cell.draggable = true;
       cell.dataset.index = String(i);
+      if (selectedPostIds.has(p.id)) cell.classList.add('selected');
 
       const im = document.createElement('img');
-      im.src = p.url;
+      im.src = p.cover.url;
       im.alt = '';
       im.draggable = false;
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'thumb-check';
+      cb.checked = selectedPostIds.has(p.id);
+      cb.title = 'Select for bulk actions';
+      cb.addEventListener('click', (e) => e.stopPropagation());
+      cb.addEventListener('change', () => {
+        if (cb.checked) selectedPostIds.add(p.id);
+        else selectedPostIds.delete(p.id);
+        cell.classList.toggle('selected', cb.checked);
+        updateCarouselToolbar();
+      });
 
       const x = document.createElement('button');
       x.type = 'button';
       x.className = 'thumb-remove';
       x.textContent = '✕';
-      x.setAttribute('aria-label', 'Remove this post');
+      x.setAttribute('aria-label', 'Remove post');
       x.addEventListener('click', (e) => {
         e.stopPropagation();
-        URL.revokeObjectURL(p.url);
+        URL.revokeObjectURL(p.cover.url);
+        p.extras.forEach((ex) => URL.revokeObjectURL(ex.url));
         singlePosts.splice(i, 1);
+        selectedPostIds.delete(p.id);
         renderThumbs();
         updateContinue();
+      });
+
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'thumb-add';
+      add.textContent = '+';
+      add.title = 'Add images behind this post';
+      add.addEventListener('click', (e) => {
+        e.stopPropagation();
+        addCarouselToPost(p.id);
       });
 
       // Left / right shift arrows (reliable on mobile + desktop)
@@ -1212,7 +1312,6 @@ h1{
       cell.addEventListener('dragover', (e) => {
         if (draggedIndex === null || draggedIndex === i) return;
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
         cell.classList.add('drag-over');
       });
 
@@ -1228,9 +1327,91 @@ h1{
         renderThumbs();
       });
 
-      cell.append(im, x, prev, next);
+      cell.append(im, cb, x, prev, next, add);
+      if (p.extras.length > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'thumb-count';
+        badge.textContent = `+${p.extras.length}`;
+        cell.appendChild(badge);
+      }
       wrap.appendChild(cell);
     });
+  }
+
+  function updateCarouselToolbar() {
+    const bar = $('#carouselToolbar');
+    if (!bar) return;
+    const n = selectedPostIds.size;
+    bar.hidden = n === 0;
+    const label = $('#carouselToolbarLabel');
+    if (label) label.textContent = `${n} selected`;
+    const splitBtn = $('#btnSplitSelected');
+    if (splitBtn) splitBtn.disabled = n < 2;
+  }
+
+  function addCarouselToPost(id) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.multiple = true;
+    input.addEventListener('change', async () => {
+      const files = Array.from(input.files || []).filter((f) => f.type.startsWith('image/'));
+      if (!files.length) return;
+      const post = singlePosts.find((p) => p.id === id);
+      if (!post) return;
+      for (const f of files) {
+        const url = URL.createObjectURL(f);
+        post.extras.push({ url, blob: f, name: f.name });
+      }
+      renderThumbs();
+      toast(`Added ${files.length} image${files.length > 1 ? 's' : ''}`, 'success');
+    });
+    input.click();
+  }
+
+  function splitAcrossSelected() {
+    const orderedPosts = singlePosts.filter((p) => selectedPostIds.has(p.id));
+    const N = orderedPosts.length;
+    if (N < 2) return toast('Select 2 or more posts', 'error');
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.addEventListener('change', async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      let img;
+      try {
+        const u = URL.createObjectURL(file);
+        img = await new Promise((res, rej) => {
+          const i = new Image();
+          i.onload = () => res(i);
+          i.onerror = () => { URL.revokeObjectURL(u); rej(new Error('bad')); };
+          i.src = u;
+        });
+      } catch {
+        return toast('Could not read that image', 'error');
+      }
+      const W = img.naturalWidth;
+      const H = img.naturalHeight;
+      const sliceH = Math.floor(H / N);
+      if (sliceH < 20) return toast('Image is too small to split', 'error');
+      const canvas = document.createElement('canvas');
+      canvas.width = W;
+      const ctx = canvas.getContext('2d');
+      for (let i = 0; i < N; i++) {
+        const sy = i * sliceH;
+        const sH = (i === N - 1) ? (H - sy) : sliceH;
+        canvas.height = sH;
+        ctx.clearRect(0, 0, W, sH);
+        ctx.drawImage(img, 0, sy, W, sH, 0, 0, W, sH);
+        const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
+        const url = URL.createObjectURL(blob);
+        orderedPosts[i].extras.push({ url, blob, name: `${file.name}-s${i + 1}.jpg` });
+      }
+      renderThumbs();
+      toast(`Split across ${N} posts`, 'success');
+    });
+    input.click();
   }
 
   /* ═══════════════════════════════════════════════════════
@@ -1397,7 +1578,10 @@ h1{
           const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
           const url  = URL.createObjectURL(blob);
           feedOwnedUrls.push(url);
-          out.push({ url, name: `post-${out.length + 1}.png`, blob });
+          out.push({
+            id: 'p_' + Math.random().toString(36).slice(2, 10),
+            images: [{ url, blob, name: `post-${out.length + 1}.png` }],
+          });
         }
       }
     }
@@ -1410,18 +1594,19 @@ h1{
   async function openFeedFromUpload() {
     const mode = activeTab();
     const btn = $('#btnContinue');
-
     closeFeedUrls();
     posts = [];
 
     if (mode === 'single') {
-      posts = singlePosts.map((p) => ({ url: p.url, name: p.name, blob: p.blob }));
-      // do NOT own these URLs — singlePosts still owns them
+      posts = singlePosts.map((p) => ({
+        id: p.id,
+        images: [
+          { url: p.cover.url, blob: p.cover.blob, name: p.cover.name },
+          ...p.extras.map((e) => ({ url: e.url, blob: e.blob, name: e.name })),
+        ],
+      }));
       currentDisplay = 'rtl';
-      currentLayout = { cols: 3, rows: Math.ceil(posts.length / 3) };
       currentSource = 'single';
-      currentSavedId = null;
-      currentFeedName = '';
     } else {
       btn.disabled = true;
       const original = btn.textContent;
@@ -1437,14 +1622,14 @@ h1{
       }
       btn.textContent = original;
       btn.disabled = false;
-      currentLayout = { cols: 3, rows: Math.ceil(posts.length / 3) };
-      currentSource = 'long';
       currentDisplay = 'ltr';
-      currentSavedId = null;
-      currentFeedName = '';
+      currentSource = 'long';
     }
 
     if (!posts.length) return;
+    currentLayout = { cols: 3, rows: Math.ceil(posts.length / 3) };
+    currentSavedId = null;
+    currentFeedName = '';
     feedReturnView = 'upload';
     renderFeed(currentDisplay);
     showFeed();
@@ -1453,7 +1638,6 @@ h1{
   function renderFeed(display) {
     const grid = $('#grid');
     grid.innerHTML = '';
-
     const COLS = 3;
     const rtl = display === 'rtl';
 
@@ -1463,22 +1647,28 @@ h1{
       tile.className = 'tile';
       tile.setAttribute('aria-label', `Open post ${i + 1} of ${posts.length}`);
 
-      // LTR for sliced long images (matches slicing order), RTL for individual posts:
-      // post 0 -> top-left (ltr) or top-right (rtl), then top-to-bottom across rows.
-      const row = Math.floor(i / COLS) + 1;
+      const row = Math.floor(i / COLS);
       const colInRow = i % COLS;
-      const col = rtl ? (COLS - colInRow) : (colInRow + 1);
+      const col = rtl ? (COLS - 1 - colInRow) : colInRow;
 
-      tile.style.gridRow    = String(row);
-      tile.style.gridColumn = String(col);
+      tile.style.gridRowStart = String(row + 1);
+      tile.style.gridColumnStart = String(col + 1);
 
       const img = document.createElement('img');
-      img.src = p.url;
+      img.src = p.images[0].url;
       img.alt = '';
       img.loading = 'lazy';
       img.decoding = 'async';
-
       tile.appendChild(img);
+
+      if (p.images.length > 1) {
+        const badge = document.createElement('span');
+        badge.className = 'tile-carousel';
+        badge.textContent = '❐';
+        badge.title = `${p.images.length} images`;
+        tile.appendChild(badge);
+      }
+
       tile.addEventListener('click', () => openLightbox(i));
       grid.appendChild(tile);
     });
@@ -1507,15 +1697,20 @@ h1{
     btn.textContent = 'Saving...';
 
     try {
-      // Compress each image to keep the payload well under 6 MB
-      // (posts opened from the cloud have no local blob — fetch them back first)
-      const images = await Promise.all(
-        posts.map(async (p) => {
-          const blob = p.blob || await fetch(p.url).then((r) => r.blob());
+      const flatImages = [];
+      const postStructure = [];
+
+      for (const p of posts) {
+        const indices = [];
+        for (const im of p.images) {
+          const blob = im.blob || await fetch(im.url).then((r) => r.blob());
           const small = await shrinkImage(blob, SHARE_W, SHARE_Q);
-          return await blobToBase64(small);
-        })
-      );
+          const b64 = await blobToBase64(small);
+          indices.push(flatImages.length);
+          flatImages.push(b64);
+        }
+        postStructure.push(indices);
+      }
 
       const result = await fetchJSON('/.netlify/functions/save-feed', {
         method: 'POST',
@@ -1523,9 +1718,9 @@ h1{
         body: JSON.stringify({
           name,
           layout: currentLayout,
-          source: currentSource || 'single',
           display: currentDisplay,
-          images,
+          images: flatImages,
+          postStructure,
         }),
       });
 
@@ -1727,7 +1922,7 @@ h1{
 
       const info = document.createElement('div');
       info.className = 'feed-info';
-      const count = (f.images && f.images.length) || 0;
+      const count = (f.postStructure && f.postStructure.length) || (f.images && f.images.length) || 0;
       const cols = (f.layout && f.layout.cols) || 3;
       const rows = (f.layout && f.layout.rows) || Math.ceil(count / cols);
       info.innerHTML =
@@ -1761,15 +1956,28 @@ h1{
   async function openSavedFeed(id, { shared = false } = {}) {
     try {
       const meta = await fetchJSON(`/.netlify/functions/get-feed?id=${encodeURIComponent(id)}`);
-
       closeFeedUrls();
-      posts = meta.images.map((url, i) => ({ url, name: `post-${i + 1}.jpg` }));
+
+      if (meta.postStructure && Array.isArray(meta.postStructure)) {
+        posts = meta.postStructure.map((indices) => ({
+          id: 'p_' + Math.random().toString(36).slice(2, 10),
+          images: indices.map((idx) => ({
+            url: meta.images[idx],
+            name: `img-${idx}.jpg`,
+          })),
+        }));
+      } else {
+        posts = meta.images.map((url, i) => ({
+          id: 'p_' + i,
+          images: [{ url, name: `img-${i}.jpg` }],
+        }));
+      }
 
       currentSavedId = meta.id;
       currentFeedName = meta.name;
       currentLayout = meta.layout;
-      currentSource = meta.source || 'saved';
       currentDisplay = meta.display || (meta.source === 'long' ? 'ltr' : 'rtl');
+      currentSource = 'saved';
       feedReturnView = shared ? 'shared' : 'dashboard';
 
       renderFeed(currentDisplay);
@@ -1894,10 +2102,12 @@ h1{
   /* ═══════════════════════════════════════════════════════
      LIGHTBOX
      ═══════════════════════════════════════════════════════ */
-  let lbIndex = 0;
+  let lbPostIndex = 0;
+  let lbImageIndex = 0;
 
   function openLightbox(i) {
-    lbIndex = i;
+    lbPostIndex = i;
+    lbImageIndex = 0;
     paintLightbox();
     $('#lightbox').hidden = false;
     document.documentElement.style.overflow = 'hidden';
@@ -1908,17 +2118,52 @@ h1{
     document.documentElement.style.overflow = '';
   }
   function paintLightbox() {
-    const p = posts[lbIndex];
-    if (!p) return;
-    $('#lbImg').src = p.url;
-    $('#lbCounter').textContent = `${lbIndex + 1} / ${posts.length}`;
-    const many = posts.length > 1;
+    const post = posts[lbPostIndex];
+    if (!post) return;
+    const img = post.images[lbImageIndex];
+    if (!img) return;
+
+    $('#lbImg').src = img.url;
+
+    const totalInPost = post.images.length;
+    const counterText = totalInPost > 1
+      ? `${lbPostIndex + 1}/${posts.length} · ${lbImageIndex + 1}/${totalInPost}`
+      : `${lbPostIndex + 1}/${posts.length}`;
+    $('#lbCounter').textContent = counterText;
+
+    const dots = $('#lbDots');
+    dots.innerHTML = '';
+    if (totalInPost > 1) {
+      for (let i = 0; i < totalInPost; i++) {
+        const d = document.createElement('span');
+        d.className = 'lb-dot' + (i === lbImageIndex ? ' active' : '');
+        dots.appendChild(d);
+      }
+      dots.hidden = false;
+    } else {
+      dots.hidden = true;
+    }
+
+    const many = posts.length > 1 || totalInPost > 1;
     $('#lbPrev').hidden = !many;
     $('#lbNext').hidden = !many;
   }
   function stepLightbox(delta) {
-    if (posts.length < 2) return;
-    lbIndex = (lbIndex + delta + posts.length) % posts.length;
+    const post = posts[lbPostIndex];
+    if (!post) return;
+    const totalInPost = post.images.length;
+
+    const newImgIdx = lbImageIndex + delta;
+    if (newImgIdx >= 0 && newImgIdx < totalInPost) {
+      lbImageIndex = newImgIdx;
+    } else {
+      let newPostIdx = lbPostIndex + delta;
+      if (newPostIdx < 0) newPostIdx = posts.length - 1;
+      if (newPostIdx >= posts.length) newPostIdx = 0;
+      lbPostIndex = newPostIdx;
+      const nextPost = posts[newPostIdx];
+      lbImageIndex = delta > 0 ? 0 : (nextPost.images.length - 1);
+    }
     paintLightbox();
   }
 
@@ -2015,12 +2260,20 @@ h1{
   $('#lbPrev').addEventListener('click', () => stepLightbox(-1));
   $('#lbNext').addEventListener('click', () => stepLightbox(1));
   $('#lightbox').addEventListener('click', (e) => { if (e.target === $('#lightbox')) closeLightbox(); });
+  $('#btnClearSelection').addEventListener('click', () => {
+    selectedPostIds.clear();
+    renderThumbs();
+  });
+
+  $('#btnSplitSelected').addEventListener('click', splitAcrossSelected);
   $('#lbDownload').addEventListener('click', () => {
-    const p = posts[lbIndex];
-    if (!p) return;
+    const post = posts[lbPostIndex];
+    if (!post) return;
+    const img = post.images[lbImageIndex];
+    if (!img) return;
     const a = document.createElement('a');
-    a.href = p.url;
-    a.download = p.name || `post-${lbIndex + 1}.png`;
+    a.href = img.url;
+    a.download = img.name || `post-${lbPostIndex + 1}-${lbImageIndex + 1}.jpg`;
     document.body.appendChild(a);
     a.click();
     a.remove();

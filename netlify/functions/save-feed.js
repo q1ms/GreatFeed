@@ -1,16 +1,15 @@
 import { getStore } from "@netlify/blobs";
 
-export default async (request, context) => {
+export default async (request) => {
   if (request.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
 
   try {
     const data = await request.json();
-    const { name, layout, images, source, display } = data;
+    const { name, layout, images, display, postStructure } = data;
 
     const feedId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    // No need for connectLambda; the context is automatic in this mode.
     const store = getStore({ name: "gridfeed-storage", consistency: "strong" });
 
     const imageUrls = [];
@@ -25,10 +24,9 @@ export default async (request, context) => {
     const meta = {
       id: feedId,
       name: name || "Untitled feed",
-      // 'single' + 'rtl' = individual posts, 'long' + 'ltr' = sliced long images
-      source: source === "long" ? "long" : "single",
-      display: display === "ltr" ? "ltr" : "rtl",
       layout,
+      display: display || "ltr",
+      postStructure: postStructure || null,
       images: imageUrls,
       createdAt: new Date().toISOString(),
     };
