@@ -1560,9 +1560,7 @@ h1{
         const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
         const url = URL.createObjectURL(blob);
 
-        const old = post.images[0];
-        if (old && old.url) URL.revokeObjectURL(old.url);
-        post.images[0] = { url, blob, name: `slice-r${r + 1}c${c + 1}.jpg` };
+        post.images.push({ url, blob, name: `slice-r${r + 1}c${c + 1}.jpg` });
 
         assigned++;
       }
