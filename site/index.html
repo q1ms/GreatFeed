@@ -643,6 +643,28 @@ h1{
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
 }
 
+.split-diagram{
+  display:grid;
+  gap:4px;
+  background:var(--line);
+  border-radius:10px;
+  overflow:hidden;
+  max-width:240px;
+  margin:16px auto;
+  padding:3px;
+  box-shadow:0 0 0 1px var(--line);
+}
+.split-cell{
+  aspect-ratio:1080/1350;
+  background:var(--surface);
+  border-radius:5px;
+  transition:background .18s;
+}
+.split-cell.active{
+  background:var(--brand-gradient);
+  box-shadow:0 2px 6px rgba(220,39,67,.25);
+}
+
 /* Lightbox dots */
 .lb-dots{
   position:absolute;bottom:72px;left:50%;
@@ -829,6 +851,20 @@ h1{
     <div class="preview-strip" id="previewStrip"></div>
     <div class="modal-actions">
       <button class="btn ghost" data-close-modal="modalPreview">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-wrap" id="modalSplit" hidden>
+  <div class="modal-backdrop" data-close-modal="modalSplit"></div>
+  <div class="modal">
+    <h2>Split one image across selection</h2>
+    <p class="modal-sub" id="splitMeta"></p>
+    <div class="split-diagram" id="splitDiagram"></div>
+    <p class="hint" id="splitHint" style="text-align:center"></p>
+    <div class="modal-actions">
+      <button class="btn ghost" data-close-modal="modalSplit">Cancel</button>
+      <button class="btn primary" id="btnSplitChoose">Choose image</button>
     </div>
   </div>
 </div>
@@ -1382,49 +1418,162 @@ h1{
     input.click();
   }
 
-  function splitAcrossSelected() {
-    const orderedPosts = singlePosts.filter((p) => selectedPostIds.has(p.id));
-    const N = orderedPosts.length;
-    if (N < 2) return toast('Select 2 or more posts', 'error');
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.addEventListener('change', async () => {
-      const file = input.files && input.files[0];
-      if (!file) return;
-      let img;
-      try {
-        const u = URL.createObjectURL(file);
-        img = await new Promise((res, rej) => {
-          const i = new Image();
-          i.onload = () => res(i);
-          i.onerror = () => { URL.revokeObjectURL(u); rej(new Error('bad')); };
-          i.src = u;
-        });
-      } catch {
-        return toast('Could not read that image', 'error');
+  function getSelectedLayout() {
+    const rtl = activeTab() === 'single';
+    const COLS = 3;
+
+    const selected = [];
+    singlePosts.forEach((p, i) => {
+      if (selectedPostIds.has(p.id)) selected.push({ post: p, index: i });
+    });
+
+    if (selected.length < 2) return { error: 'Select 2 or more posts first' };
+
+    const positions = selected.map(({ post, index }) => {
+      const row = Math.floor(index / COLS);
+      const colInRow = index % COLS;
+      const col = rtl ? (COLS - 1 - colInRow) : colInRow;
+      return { post, row, col };
+    });
+
+    const minRow = Math.min(...positions.map((p) => p.row));
+    const maxRow = Math.max(...positions.map((p) => p.row));
+    const minCol = Math.min(...positions.map((p) => p.col));
+    const maxCol = Math.max(...positions.map((p) => p.col));
+
+    const cols = maxCol - minCol + 1;
+    const rows = maxRow - minRow + 1;
+    const expected = cols * rows;
+
+    if (positions.length !== expected) {
+      return {
+        error: `Selection must be a solid rectangle. You selected ${positions.length} ` +
+               `post${positions.length > 1 ? 's' : ''}, but they span a ${cols}×${rows} area ` +
+               `(${expected} cells).`,
+      };
+    }
+
+    const lookup = new Map();
+    positions.forEach((p) => lookup.set(`${p.row},${p.col}`, p.post));
+
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        if (!lookup.has(`${r},${c}`)) {
+          return { error: 'Selection must be a solid rectangle.' };
+        }
       }
-      const W = img.naturalWidth;
-      const H = img.naturalHeight;
-      const sliceH = Math.floor(H / N);
-      if (sliceH < 20) return toast('Image is too small to split', 'error');
-      const canvas = document.createElement('canvas');
-      canvas.width = W;
-      const ctx = canvas.getContext('2d');
-      for (let i = 0; i < N; i++) {
-        const sy = i * sliceH;
-        const sH = (i === N - 1) ? (H - sy) : sliceH;
-        canvas.height = sH;
-        ctx.clearRect(0, 0, W, sH);
-        ctx.drawImage(img, 0, sy, W, sH, 0, 0, W, sH);
+    }
+
+    return {
+      cols,
+      rows,
+      minRow,
+      minCol,
+      lookup,
+      width: cols * TILE_W,
+      height: rows * TILE_H,
+      count: positions.length,
+      rtl,
+    };
+  }
+
+  function openSplitModal() {
+    const layout = getSelectedLayout();
+    if (layout.error) return toast(layout.error, 'error');
+
+    $('#splitMeta').innerHTML =
+      `<b>${layout.count} posts</b> selected in a ${layout.cols} × ${layout.rows} layout.<br>` +
+      `Expected image size: <b>${layout.width} × ${layout.height}</b> px (or any multiple).`;
+
+    const diagram = $('#splitDiagram');
+    diagram.innerHTML = '';
+    diagram.style.gridTemplateColumns = `repeat(${layout.cols}, 1fr)`;
+    diagram.style.aspectRatio = `${layout.cols} / ${layout.rows * (TILE_H / TILE_W)}`;
+
+    for (let r = 0; r < layout.rows; r++) {
+      for (let c = 0; c < layout.cols; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'split-cell active';
+        diagram.appendChild(cell);
+      }
+    }
+
+    const sliceW = layout.width / layout.cols;
+    const sliceH = layout.height / layout.rows;
+    $('#splitHint').textContent =
+      `Sliced into ${layout.count} tiles of ${sliceW} × ${sliceH} px each — ` +
+      `placed as the cover of each selected post.`;
+
+    window._pendingSplitLayout = layout;
+    openModal('modalSplit');
+  }
+
+  async function splitImageAcrossSelection(file, layout) {
+    let img;
+    try {
+      const u = URL.createObjectURL(file);
+      img = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i);
+        i.onerror = () => { URL.revokeObjectURL(u); rej(new Error('bad')); };
+        i.src = u;
+      });
+    } catch {
+      return toast('Could not read that image', 'error');
+    }
+
+    const W = img.naturalWidth;
+    const H = img.naturalHeight;
+
+    if (W % layout.cols !== 0 || H % layout.rows !== 0) {
+      return toast(
+        `Width must divide evenly by ${layout.cols}, height by ${layout.rows}. ` +
+        `Got ${W}×${H}. Try ${layout.width}×${layout.height}.`,
+        'error');
+    }
+
+    const sliceW = W / layout.cols;
+    const sliceH = H / layout.rows;
+
+    if (sliceW < 200 || sliceH < 250) {
+      return toast('Image too small — each slice must be at least 200×250', 'error');
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = TILE_W;
+    canvas.height = TILE_H;
+    const ctx = canvas.getContext('2d');
+
+    let assigned = 0;
+    for (let r = 0; r < layout.rows; r++) {
+      for (let c = 0; c < layout.cols; c++) {
+        const post = layout.lookup.get(`${layout.minRow + r},${layout.minCol + c}`);
+        if (!post) continue;
+
+        const sx = c * sliceW;
+        const sy = r * sliceH;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, TILE_W, TILE_H);
+        ctx.drawImage(img, sx, sy, sliceW, sliceH, 0, 0, TILE_W, TILE_H);
+
         const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
         const url = URL.createObjectURL(blob);
-        orderedPosts[i].images.push({ url, blob, name: `${file.name}-s${i + 1}.jpg` });
+
+        const old = post.images[0];
+        if (old && old.url) URL.revokeObjectURL(old.url);
+        post.images[0] = { url, blob, name: `slice-r${r + 1}c${c + 1}.jpg` };
+
+        assigned++;
       }
-      renderThumbs();
-      toast(`Split across ${N} posts`, 'success');
-    });
-    input.click();
+    }
+
+    renderThumbs();
+    toast(`Split into ${assigned} post${assigned > 1 ? 's' : ''}`, 'success');
+  }
+
+  function splitAcrossSelected() {
+    openSplitModal();
   }
 
   function openPreviewModal(post, index) {
@@ -2215,6 +2364,22 @@ h1{
   });
 
   $('#btnSplitSelected').addEventListener('click', splitAcrossSelected);
+
+  $('#btnSplitChoose').addEventListener('click', () => {
+    const layout = window._pendingSplitLayout;
+    if (!layout) return;
+    closeModal('modalSplit');
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.addEventListener('change', async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      await splitImageAcrossSelection(file, layout);
+    });
+    input.click();
+  });
   $('#lbDownload').addEventListener('click', () => {
     const post = posts[lbPostIndex];
     if (!post) return;
