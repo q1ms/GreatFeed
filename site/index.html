@@ -635,7 +635,7 @@ h1{
 .tile-edit:hover{background:rgba(28,25,23,.95);transform:scale(1.1)}
 
 .tile-carousel{
-  position:absolute;top:8px;left:8px;
+  position:absolute;bottom:8px;left:8px;
   display:flex;align-items:center;gap:4px;
   background:rgba(28,25,23,.72);color:#fff;
   font-size:11px;font-weight:700;padding:3px 8px;
@@ -707,6 +707,96 @@ h1{
   .feedbar{top:60px;padding:10px 14px}
   .feedbar .feed-count{display:none}
   .lbnav{width:40px;height:40px;font-size:22px}
+}
+
+/* Tile checkbox (feed view, editable only) */
+.tile-check{
+  position:absolute;top:8px;left:8px;
+  width:20px;height:20px;
+  cursor:pointer;
+  accent-color:var(--brand-red);
+  z-index:4;
+  opacity:.35;
+  transition:opacity .15s,transform .15s;
+}
+.tile:hover .tile-check,
+.tile.selected .tile-check,
+.tile-check:checked{
+  opacity:1;
+}
+.tile-check:hover{transform:scale(1.12)}
+
+.tile.selected::before{
+  content:"";
+  position:absolute;inset:0;
+  background:rgba(220,39,67,.14);
+  border:3px solid var(--brand-red);
+  box-sizing:border-box;
+  pointer-events:none;
+  z-index:3;
+}
+
+/* Floating selection bar */
+.selection-bar{
+  position:fixed;
+  bottom:82px;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;align-items:center;gap:8px;
+  padding:10px 14px;
+  background:var(--fg);
+  color:#fff;
+  border-radius:14px;
+  box-shadow:0 16px 40px rgba(28,25,23,.28);
+  z-index:35;
+  font-size:13px;
+  max-width:calc(100vw - 32px);
+  animation:slideUp .22s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes slideUp{
+  from{transform:translateX(-50%) translateY(16px);opacity:0}
+  to{transform:translateX(-50%) translateY(0);opacity:1}
+}
+.selection-bar .spacer{flex:1;min-width:8px}
+.selection-bar #feedSelectionCount{
+  font-weight:600;padding:0 4px;white-space:nowrap;
+}
+.selection-bar .btn.small{
+  background:rgba(255,255,255,.14);
+  color:#fff;
+  border-color:transparent;
+  white-space:nowrap;
+}
+.selection-bar .btn.small:hover{
+  background:rgba(255,255,255,.24);
+  color:#fff;
+}
+.selection-bar .btn.small:disabled{
+  opacity:.4;
+  cursor:not-allowed;
+}
+.selection-bar .btn.small.primary{
+  background:var(--brand-gradient);
+  border-color:transparent;
+  box-shadow:0 3px 10px rgba(220,39,67,.4);
+}
+.selection-bar .btn.small.primary:hover{
+  background:var(--brand-gradient);
+  transform:translateY(-1px);
+  box-shadow:0 6px 16px rgba(220,39,67,.5);
+}
+
+@media (max-width:520px){
+  .selection-bar{
+    bottom:72px;
+    padding:9px 11px;
+    font-size:12px;
+    gap:6px;
+  }
+  .selection-bar .btn.small{
+    padding:7px 10px;
+    font-size:11.5px;
+  }
 }
 </style>
 </head>
@@ -926,6 +1016,13 @@ h1{
   </div>
 </div>
 
+<div class="selection-bar" id="feedSelectionBar" hidden>
+  <span id="feedSelectionCount">0 selected</span>
+  <span class="spacer"></span>
+  <button class="btn small" id="btnClearFeedSelection" type="button">Clear</button>
+  <button class="btn small primary" id="btnSplitFeedSelection" type="button">Split one image across selected</button>
+</div>
+
 <!-- ══════════════════ LIGHTBOX ══════════════════ -->
 <div class="lightbox" id="lightbox" hidden>
   <button class="lbclose" id="lbClose" aria-label="Close">✕</button>
@@ -1082,6 +1179,7 @@ h1{
      ═══════════════════════════════════════════════════════ */
   let singlePosts = [];        // [{ id, images:[{url,name,blob}] }] — owned URLs
   let selectedPostIds = new Set();
+  let feedSelectedIds = new Set();
   let currentDisplay = 'rtl';  // 'rtl' = individual posts (post 1 top-right) · 'ltr' = sliced long images
   let posts = [];              // active feed posts [{ id, images:[{url,name,blob?}] }]
   let feedOwnedUrls = [];      // object URLs the feed view created & must revoke on close
@@ -1105,6 +1203,7 @@ h1{
 
   function showUpload() {
     closeFeedUrls();
+    feedSelectedIds.clear();
     posts = [];
     currentSavedId = null;
     currentFeedName = '';
@@ -1127,6 +1226,7 @@ h1{
     currentView = 'upload';
     setNavActive('create');
     window.scrollTo(0, 0);
+    updateFeedSelectionBar();
   }
 
   function showFeed() {
@@ -1137,6 +1237,7 @@ h1{
     currentView = 'feed';
     setNavActive('create');
     window.scrollTo(0, 0);
+    updateFeedSelectionBar();
   }
 
   async function showDashboard() {
@@ -1146,6 +1247,7 @@ h1{
     currentView = 'dashboard';
     setNavActive('dashboard');
     window.scrollTo(0, 0);
+    updateFeedSelectionBar();
     await renderDashboard();
   }
 
@@ -1418,13 +1520,49 @@ h1{
     input.click();
   }
 
-  function getSelectedLayout() {
-    const rtl = activeTab() === 'single';
+  function getEditContext() {
+    // Which view is currently editable?
+    if (currentView === 'feed' && !sharedViewMode) {
+      return {
+        postsArray: posts,
+        selection: feedSelectedIds,
+        rtl: currentDisplay === 'rtl',
+        mode: 'feed',
+        render: () => { renderFeed(currentDisplay); updateFeedSelectionBar(); },
+      };
+    }
+    return {
+      postsArray: singlePosts,
+      selection: selectedPostIds,
+      rtl: activeTab() === 'single',
+      mode: 'editor',
+      render: () => renderThumbs(),
+    };
+  }
+
+  function updateFeedSelectionBar() {
+    const bar = $('#feedSelectionBar');
+    if (!bar) return;
+    if (sharedViewMode || currentView !== 'feed') {
+      bar.hidden = true;
+      return;
+    }
+    const n = feedSelectedIds.size;
+    bar.hidden = n === 0;
+    const count = $('#feedSelectionCount');
+    if (count) count.textContent = `${n} selected`;
+    const btn = $('#btnSplitFeedSelection');
+    if (btn) btn.disabled = n < 2;
+  }
+
+  function getSelectedLayout(ctx) {
+    ctx = ctx || getEditContext();
+    const rtl = ctx.rtl;
     const COLS = 3;
 
     const selected = [];
-    singlePosts.forEach((p, i) => {
-      if (selectedPostIds.has(p.id)) selected.push({ post: p, index: i });
+    ctx.postsArray.forEach((p, i) => {
+      if (ctx.selection.has(p.id)) selected.push({ post: p, index: i });
     });
 
     if (selected.length < 2) return { error: 'Select 2 or more posts first' };
@@ -1474,6 +1612,7 @@ h1{
       height: rows * TILE_H,
       count: positions.length,
       rtl,
+      ctx,
     };
   }
 
@@ -1566,12 +1705,39 @@ h1{
       }
     }
 
-    renderThumbs();
+    if (layout.ctx) layout.ctx.render();
+    else renderThumbs();
     toast(`Split into ${assigned} post${assigned > 1 ? 's' : ''}`, 'success');
   }
 
   function splitAcrossSelected() {
-    openSplitModal();
+    const ctx = getEditContext();
+    const layout = getSelectedLayout(ctx);
+    if (layout.error) return toast(layout.error, 'error');
+
+    $('#splitMeta').innerHTML =
+      `<b>${layout.count} posts</b> selected in a ${layout.cols} × ${layout.rows} layout.<br>` +
+      `Expected image size: <b>${layout.width} × ${layout.height}</b> px (or any multiple).`;
+
+    const diagram = $('#splitDiagram');
+    diagram.innerHTML = '';
+    diagram.style.gridTemplateColumns = `repeat(${layout.cols}, 1fr)`;
+    diagram.style.aspectRatio = `${layout.cols} / ${layout.rows * (TILE_H / TILE_W)}`;
+
+    for (let r = 0; r < layout.rows; r++) {
+      for (let c = 0; c < layout.cols; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'split-cell active';
+        diagram.appendChild(cell);
+      }
+    }
+
+    $('#splitHint').textContent =
+      `Sliced into ${layout.count} tiles of ${layout.width / layout.cols} × ` +
+      `${layout.height / layout.rows} px each — placed as image #2 of each selected post.`;
+
+    window._pendingSplitLayout = layout;
+    openModal('modalSplit');
   }
 
   function openPreviewModal(post, index) {
@@ -1680,6 +1846,7 @@ h1{
     if (!singlePosts.length) return;
 
     closeFeedUrls();
+    feedSelectedIds.clear();
     posts = singlePosts.map((p) => ({
       id: p.id,
       images: p.images.map((im) => ({ url: im.url, blob: im.blob, name: im.name })),
@@ -1704,11 +1871,18 @@ h1{
     const rtl = display === 'rtl';
     const editable = !sharedViewMode;
 
+    // Prune stale selections from feedSelectedIds
+    const validIds = new Set(posts.map((p) => p.id));
+    for (const id of Array.from(feedSelectedIds)) {
+      if (!validIds.has(id)) feedSelectedIds.delete(id);
+    }
+
     posts.forEach((p, i) => {
       const tile = document.createElement('button');
       tile.type = 'button';
       tile.className = 'tile';
       tile.setAttribute('aria-label', `Open post ${i + 1} of ${posts.length}`);
+      if (feedSelectedIds.has(p.id)) tile.classList.add('selected');
 
       const row = Math.floor(i / COLS);
       const colInRow = i % COLS;
@@ -1731,6 +1905,20 @@ h1{
       }
 
       if (editable) {
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'tile-check';
+        cb.checked = feedSelectedIds.has(p.id);
+        cb.title = 'Select post';
+        cb.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (cb.checked) feedSelectedIds.add(p.id);
+          else feedSelectedIds.delete(p.id);
+          tile.classList.toggle('selected', cb.checked);
+          updateFeedSelectionBar();
+        });
+        tile.appendChild(cb);
+
         const editBtn = document.createElement('span');
         editBtn.className = 'tile-edit';
         editBtn.textContent = '+';
@@ -1742,13 +1930,30 @@ h1{
         tile.appendChild(editBtn);
       }
 
-      tile.addEventListener('click', () => openLightbox(i));
+      tile.addEventListener('click', () => {
+        if (editable && feedSelectedIds.size > 0) {
+          // In selection mode, tapping the tile toggles selection
+          const cb = tile.querySelector('.tile-check');
+          if (cb) {
+            cb.checked = !cb.checked;
+            if (cb.checked) feedSelectedIds.add(p.id);
+            else feedSelectedIds.delete(p.id);
+            tile.classList.toggle('selected', cb.checked);
+            updateFeedSelectionBar();
+          }
+          return;
+        }
+        openLightbox(i);
+      });
+
       grid.appendChild(tile);
     });
 
     $('#feedCount').textContent = `${posts.length} post${posts.length > 1 ? 's' : ''}`;
     $('#feedTitle').textContent = currentFeedName || 'Untitled feed';
     $('#btnSave').textContent = currentSavedId ? 'Update' : 'Save';
+
+    updateFeedSelectionBar();
   }
 
   function addCarouselToFeedPost(index) {
@@ -1766,6 +1971,7 @@ h1{
         post.images.push({ url, blob: f, name: f.name });
       }
       renderFeed(currentDisplay);
+      updateFeedSelectionBar();
       toast(`Added ${files.length} image${files.length > 1 ? 's' : ''} · click Update to save`, 'success');
     });
     input.click();
@@ -2053,6 +2259,7 @@ h1{
     try {
       const meta = await fetchJSON(`/.netlify/functions/get-feed?id=${encodeURIComponent(id)}`);
       closeFeedUrls();
+      feedSelectedIds.clear();
 
       if (meta.postStructure && Array.isArray(meta.postStructure)) {
         posts = meta.postStructure.map((indices) => ({
@@ -2131,6 +2338,9 @@ h1{
       badge.textContent = 'Shared · read-only';
       title.appendChild(badge);
     }
+
+    const bar = document.getElementById('feedSelectionBar');
+    if (bar) bar.hidden = true;
   }
 
   function leaveSharedViewMode() {
@@ -2362,6 +2572,14 @@ h1{
   });
 
   $('#btnSplitSelected').addEventListener('click', splitAcrossSelected);
+
+  $('#btnClearFeedSelection').addEventListener('click', () => {
+    feedSelectedIds.clear();
+    renderFeed(currentDisplay);
+    updateFeedSelectionBar();
+  });
+
+  $('#btnSplitFeedSelection').addEventListener('click', splitAcrossSelected);
 
   $('#btnSplitChoose').addEventListener('click', () => {
     const layout = window._pendingSplitLayout;
